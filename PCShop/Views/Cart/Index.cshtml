@@ -1,0 +1,90 @@
+@model IEnumerable<PCShop.Models.CartItem>
+
+@{
+    ViewData["Title"] = "Shopping Cart";
+    decimal total = Model != null ? Model.Sum(i => i.Quantity * i.Product.Price) : 0;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Your Shopping Cart</h2>
+    <div>
+        <form asp-action="Undo" method="post" class="d-inline">
+            <button type="submit" class="btn btn-warning" title="Undo Last Command (Command Pattern)">
+                <i class="bi bi-arrow-counterclockwise"></i> Undo Last Action
+            </button>
+        </form>
+        @if (Model != null && Model.Any())
+        {
+            <form asp-action="ClearCart" method="post" class="d-inline ms-2">
+                <button type="submit" class="btn btn-danger">Clear Cart</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (TempData["Message"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        @TempData["Message"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+@if (Model == null || !Model.Any())
+{
+    <div class="alert alert-secondary">
+        Your cart is empty. <a asp-controller="Product" asp-action="Index">Continue shopping</a>.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Product</th>
+                    <th>Price</th>
+                    <th>Quantity</th>
+                    <th>Subtotal</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <img src="@item.Product.ImageUrl" alt="@item.Product.Name" style="width: 50px; height: 50px; object-fit: contain;" class="me-3">
+                                <div>
+                                    <h6 class="mb-0">@item.Product.Name</h6>
+                                    <small class="text-muted">@item.Product.Brand</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>@item.Product.Price.ToString("C")</td>
+                        <td>@item.Quantity</td>
+                        <td>@((item.Product.Price * item.Quantity).ToString("C"))</td>
+                        <td>
+                            <form asp-action="RemoveFromCart" method="post">
+                                <input type="hidden" name="productId" value="@item.Product.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold fs-5">
+                    <td colspan="3" class="text-end">Total:</td>
+                    <td colspan="2">@total.ToString("C")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="text-end mt-4">
+        <a asp-controller="Product" asp-action="Index" class="btn btn-outline-secondary me-2">Continue Shopping</a>
+        <a asp-controller="Order" asp-action="Checkout" class="btn btn-success btn-lg px-5">Proceed to Checkout</a>
+    </div>
+}
