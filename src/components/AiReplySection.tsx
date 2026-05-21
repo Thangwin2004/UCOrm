@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Check, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { AIReply } from '@/types';
 
@@ -43,9 +43,11 @@ export default function AiReplySection({
   );
   const [generating, setGenerating] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenError(null);
     try {
       const res = await fetch('/api/reviews/generate', {
         method: 'POST',
@@ -55,12 +57,20 @@ export default function AiReplySection({
 
       const data = await res.json();
       if (data.success) {
-        toast.success('AI replies generated!');
+        const provider = data.provider === 'gemini' ? ' (via Gemini)' : ' (via OpenAI)';
+        toast.success(`AI replies generated${provider}!`);
         onGenerateSuccess();
       } else {
-        toast.error(data.error || 'Failed to generate replies');
+        const errMsg = data.error || 'Failed to generate replies';
+        if (errMsg.includes('quota') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+          setGenError('AI rate limited. Please wait 30-60 seconds and try again.');
+        } else {
+          setGenError(errMsg);
+        }
+        toast.error('AI generation failed — see details below');
       }
     } catch {
+      setGenError('Network error. Please check your connection and try again.');
       toast.error('Network error. Please try again.');
     } finally {
       setGenerating(false);
@@ -108,7 +118,7 @@ export default function AiReplySection({
           {generating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Generating AI Replies...
+              <span>Generating AI Replies<span className="loading-dots">...</span></span>
             </>
           ) : (
             <>
@@ -117,6 +127,17 @@ export default function AiReplySection({
             </>
           )}
         </button>
+        {generating && (
+          <p className="text-xs text-surface-500 mt-2 text-center animate-fade-in">
+            ⏳ This may take 20-60 seconds if AI is rate-limited...
+          </p>
+        )}
+        {genError && (
+          <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2 animate-fade-in">
+            <AlertTriangle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-red-300">{genError}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -134,11 +155,18 @@ export default function AiReplySection({
         </h4>
         {!isResolved && (
           <button
-            className="text-xs text-surface-500 hover:text-primary-400 transition-colors"
+            className="text-xs text-surface-500 hover:text-primary-400 transition-colors flex items-center gap-1"
             onClick={handleGenerate}
             disabled={generating}
           >
-            {generating ? 'Regenerating...' : '↻ Regenerate'}
+            {generating ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                Regenerating...
+              </>
+            ) : (
+              '↻ Regenerate'
+            )}
           </button>
         )}
       </div>
@@ -153,8 +181,9 @@ export default function AiReplySection({
             <div
               key={reply.id}
               className={`
-                relative rounded-xl p-3 cursor-pointer transition-all duration-200
+                relative rounded-xl p-3 sm:p-4 transition-all duration-200
                 animate-fade-in
+                ${isResolved ? '' : 'cursor-pointer'}
                 ${
                   isApproved
                     ? 'bg-emerald-500/10 border border-emerald-500/30'
@@ -166,11 +195,11 @@ export default function AiReplySection({
               style={{ animationDelay: `${index * 100}ms` }}
               onClick={() => !isResolved && setSelectedReplyId(reply.id)}
             >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
                 {/* Radio indicator */}
                 {!isResolved && (
                   <div
-                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
                       isSelected
                         ? 'border-primary-500 bg-primary-500'
                         : 'border-surface-500'
@@ -182,16 +211,16 @@ export default function AiReplySection({
                   </div>
                 )}
                 {isApproved && (
-                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
                     <Check size={12} className="text-white" />
                   </div>
                 )}
                 <span className={`badge text-xs ${tone?.badgeClass || ''}`}>
                   {tone?.label || reply.tone}
                 </span>
-                <span className="text-xs text-surface-500">{tone?.description}</span>
+                <span className="text-xs text-surface-500 hidden sm:inline">{tone?.description}</span>
               </div>
-              <p className="text-sm text-surface-200 leading-relaxed pl-6">
+              <p className="text-sm text-surface-200 leading-relaxed pl-0 sm:pl-6">
                 {reply.content}
               </p>
             </div>
@@ -201,9 +230,9 @@ export default function AiReplySection({
 
       {/* Approve button */}
       {!isResolved && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3">
           <button
-            className="btn-success flex-1 justify-center"
+            className="btn-success w-full sm:w-auto justify-center"
             onClick={handleApprove}
             disabled={!selectedReplyId || approving}
             id={`approve-btn-${reviewId}`}
@@ -226,7 +255,7 @@ export default function AiReplySection({
       {isResolved && approvedReply && (
         <div className="mt-3 text-xs text-emerald-400 flex items-center gap-1.5">
           <Check size={14} />
-          Approved reply: {toneConfig[approvedReply.tone as keyof typeof toneConfig]?.label}
+          Approved: {toneConfig[approvedReply.tone as keyof typeof toneConfig]?.label}
         </div>
       )}
     </div>

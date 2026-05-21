@@ -43,18 +43,18 @@ export default function PlaceIdInput({ onFetchSuccess }: PlaceIdInputProps) {
   };
 
   return (
-    <div className="glass-card p-6">
+    <div className="glass-card p-4 sm:p-6">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-          <MapPin size={20} className="text-white" />
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center flex-shrink-0">
+          <MapPin size={18} className="text-white" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-surface-100">Fetch Reviews</h2>
-          <p className="text-sm text-surface-400">Enter a Google Maps Place ID to fetch reviews</p>
+          <h2 className="text-base sm:text-lg font-semibold text-surface-100">Fetch Reviews</h2>
+          <p className="text-xs sm:text-sm text-surface-400">Enter a Google Maps Place ID to fetch reviews</p>
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-500" />
           <input
@@ -69,7 +69,7 @@ export default function PlaceIdInput({ onFetchSuccess }: PlaceIdInputProps) {
           />
         </div>
         <button
-          className="btn-primary whitespace-nowrap"
+          className="btn-primary whitespace-nowrap justify-center"
           onClick={handleFetch}
           disabled={loading || !placeId.trim()}
           id="fetch-reviews-btn"
@@ -88,7 +88,7 @@ export default function PlaceIdInput({ onFetchSuccess }: PlaceIdInputProps) {
         </button>
       </div>
 
-      <p className="text-xs text-surface-500 mt-3">
+      <p className="text-[11px] sm:text-xs text-surface-500 mt-3">
         💡 Find Place IDs at{' '}
         <a
           href="https://developers.google.com/maps/documentation/places/web-service/place-id"
@@ -98,7 +98,7 @@ export default function PlaceIdInput({ onFetchSuccess }: PlaceIdInputProps) {
         >
           Google Place ID Finder
         </a>
-        {' '}· If no Google API key is set, sample data will be used.
+        {' '}· No Google API key? Sample data will be used automatically.
       </p>
     </div>
   );

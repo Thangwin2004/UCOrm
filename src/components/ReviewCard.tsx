@@ -1,6 +1,6 @@
 'use client';
 
-import { User } from 'lucide-react';
+import { User, MapPin } from 'lucide-react';
 import type { Review } from '@/types';
 import StatusBadge from './StatusBadge';
 import StarRating from './StarRating';
@@ -12,7 +12,6 @@ interface ReviewCardProps {
 }
 
 export default function ReviewCard({ review, onDataChange }: ReviewCardProps) {
-  // Format the review time to a readable string
   const formattedTime = review.review_time
     ? new Date(review.review_time).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -22,27 +21,27 @@ export default function ReviewCard({ review, onDataChange }: ReviewCardProps) {
     : 'Unknown date';
 
   return (
-    <div className="glass-card p-5 animate-slide-up" id={`review-card-${review.id}`}>
+    <div className="glass-card p-4 sm:p-5 animate-slide-up" id={`review-card-${review.id}`}>
       {/* Header: Author info + Status */}
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-3 sm:gap-4 mb-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           {/* Author avatar */}
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center flex-shrink-0">
             {review.author_photo_url ? (
               <img
                 src={review.author_photo_url}
                 alt={review.author_name}
-                className="w-10 h-10 rounded-full object-cover"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover"
               />
             ) : (
-              <User size={18} className="text-white" />
+              <User size={16} className="text-white" />
             )}
           </div>
-          <div>
-            <h3 className="font-semibold text-surface-100 text-sm">{review.author_name}</h3>
-            <div className="flex items-center gap-2 mt-0.5">
-              <StarRating rating={review.rating} size={14} />
-              <span className="text-xs text-surface-500">· {formattedTime}</span>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-surface-100 text-sm truncate">{review.author_name}</h3>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <StarRating rating={review.rating} size={13} />
+              <span className="text-[11px] text-surface-500">· {formattedTime}</span>
             </div>
           </div>
         </div>
@@ -52,7 +51,8 @@ export default function ReviewCard({ review, onDataChange }: ReviewCardProps) {
       {/* Place name */}
       {review.place_name && (
         <p className="text-xs text-primary-400 mb-2 flex items-center gap-1">
-          📍 {review.place_name}
+          <MapPin size={12} />
+          {review.place_name}
         </p>
       )}
 

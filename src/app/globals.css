@@ -304,3 +304,20 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Loading dots */
+.loading-dots {
+  display: inline-block;
+  animation: loadingDots 1.4s infinite;
+}
+@keyframes loadingDots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}
+
+/* Ghost button disabled */
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
