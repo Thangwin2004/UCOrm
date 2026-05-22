@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   MessageSquareText,
   Clock,
@@ -10,6 +10,8 @@ import {
   Inbox,
   Database,
   Loader2,
+  Sparkles,
+  Search,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Review, ReviewStatus } from '@/types';
@@ -23,12 +25,13 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [seeding, setSeeding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bulkGenerating, setBulkGenerating] = useState(false);
 
   const fetchReviews = useCallback(async () => {
     setLoading(true);
     try {
-      const params = activeFilter !== 'all' ? `?status=${activeFilter}` : '';
-      const res = await fetch(`/api/reviews${params}`);
+      const res = await fetch('/api/reviews');
       const data = await res.json();
       if (data.success) {
         setReviews(data.data || []);
@@ -38,7 +41,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [activeFilter]);
+  }, []);
 
   useEffect(() => {
     fetchReviews();
@@ -66,17 +69,87 @@ export default function Dashboard() {
     }
   };
 
-  // Stats — always compute from all reviews (not filtered)
-  const allReviews = reviews;
-  const totalReviews = allReviews.length;
-  const pendingCount = allReviews.filter((r) => r.status === 'pending').length;
-  const resolvedCount = allReviews.filter((r) => r.status === 'resolved').length;
+  const handleBulkGenerate = async () => {
+    const pendingWithoutReplies = reviews.filter(
+      (r) => r.status === 'pending' && (!r.ai_replies || r.ai_replies.length === 0)
+    );
+    if (pendingWithoutReplies.length === 0) {
+      toast('All pending reviews already have AI replies!', { icon: '💡' });
+      return;
+    }
+
+    setBulkGenerating(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const review of pendingWithoutReplies) {
+      try {
+        const res = await fetch('/api/reviews/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ review_id: review.id }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          successCount++;
+          toast.success(`Generated replies for ${review.author_name}`, { duration: 2000 });
+        } else {
+          failCount++;
+        }
+      } catch {
+        failCount++;
+      }
+      // Small delay between requests to avoid rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    setBulkGenerating(false);
+    fetchReviews();
+
+    if (failCount === 0) {
+      toast.success(`All ${successCount} reviews processed!`);
+    } else {
+      toast(`${successCount} succeeded, ${failCount} failed`, { icon: '⚠️' });
+    }
+  };
+
+  // Stats
+  const totalReviews = reviews.length;
+  const pendingCount = reviews.filter((r) => r.status === 'pending').length;
+  const resolvedCount = reviews.filter((r) => r.status === 'resolved').length;
   const avgRating =
     totalReviews > 0
-      ? (allReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
       : '0.0';
 
-  const filters: { key: FilterTab; label: string; icon: React.ReactNode; count?: number }[] = [
+  // Filtered + searched reviews
+  const filteredReviews = useMemo(() => {
+    let result = reviews;
+
+    // Filter by status
+    if (activeFilter !== 'all') {
+      result = result.filter((r) => r.status === activeFilter);
+    }
+
+    // Search by author name or review text or place name
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (r) =>
+          r.author_name.toLowerCase().includes(q) ||
+          r.review_text.toLowerCase().includes(q) ||
+          (r.place_name && r.place_name.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [reviews, activeFilter, searchQuery]);
+
+  const pendingWithoutReplies = reviews.filter(
+    (r) => r.status === 'pending' && (!r.ai_replies || r.ai_replies.length === 0)
+  ).length;
+
+  const filters: { key: FilterTab; label: string; icon: React.ReactNode; count: number }[] = [
     { key: 'all', label: 'All Reviews', icon: <MessageSquareText size={14} />, count: totalReviews },
     { key: 'pending', label: 'Pending', icon: <Clock size={14} />, count: pendingCount },
     { key: 'resolved', label: 'Resolved', icon: <CheckCircle2 size={14} />, count: resolvedCount },
@@ -166,25 +239,25 @@ export default function Dashboard() {
         {/* Place ID Input */}
         <PlaceIdInput onFetchSuccess={fetchReviews} />
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
-          {filters.map((filter) => (
-            <button
-              key={filter.key}
-              className={`
-                flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap
-                ${
-                  activeFilter === filter.key
-                    ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
-                    : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/50 border border-transparent'
-                }
-              `}
-              onClick={() => setActiveFilter(filter.key)}
-              id={`filter-${filter.key}`}
-            >
-              {filter.icon}
-              {filter.label}
-              {filter.count !== undefined && (
+        {/* Filter tabs + Search + Bulk Generate */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 flex-shrink-0">
+            {filters.map((filter) => (
+              <button
+                key={filter.key}
+                className={`
+                  flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap
+                  ${
+                    activeFilter === filter.key
+                      ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30'
+                      : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/50 border border-transparent'
+                  }
+                `}
+                onClick={() => setActiveFilter(filter.key)}
+                id={`filter-${filter.key}`}
+              >
+                {filter.icon}
+                {filter.label}
                 <span
                   className={`text-xs px-1.5 py-0.5 rounded-full ${
                     activeFilter === filter.key
@@ -194,9 +267,48 @@ export default function Dashboard() {
                 >
                   {filter.count}
                 </span>
-              )}
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 sm:ml-auto">
+            {/* Search input */}
+            <div className="relative flex-1 sm:w-48">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+              <input
+                type="text"
+                className="input-field pl-8 py-2 text-xs"
+                placeholder="Search reviews..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                id="search-reviews"
+              />
+            </div>
+
+            {/* Bulk Generate */}
+            {pendingWithoutReplies > 0 && (
+              <button
+                className="btn-primary text-xs whitespace-nowrap"
+                onClick={handleBulkGenerate}
+                disabled={bulkGenerating}
+                id="bulk-generate-btn"
+                title={`Generate AI replies for ${pendingWithoutReplies} pending reviews`}
+              >
+                {bulkGenerating ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    <span className="hidden sm:inline">Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={13} />
+                    <span className="hidden sm:inline">Generate All ({pendingWithoutReplies})</span>
+                    <span className="sm:hidden">AI All</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Review list */}
@@ -243,9 +355,17 @@ export default function Dashboard() {
               )}
             </button>
           </div>
+        ) : filteredReviews.length === 0 ? (
+          <div className="glass-card p-8 text-center">
+            <Search size={36} className="mx-auto text-surface-600 mb-3" />
+            <h3 className="text-base font-semibold text-surface-300 mb-1">No matching reviews</h3>
+            <p className="text-sm text-surface-500">
+              Try a different search term or filter.
+            </p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {reviews.map((review, idx) => (
+            {filteredReviews.map((review, idx) => (
               <div key={review.id} style={{ animationDelay: `${idx * 80}ms` }}>
                 <ReviewCard review={review} onDataChange={fetchReviews} />
               </div>
