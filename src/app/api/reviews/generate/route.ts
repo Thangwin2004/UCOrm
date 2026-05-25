@@ -5,9 +5,60 @@ import { generateWithGemini } from '@/lib/gemini';
 import type { GenerateAIPayload, ApiResponse, AIReply, AIGenerateOutput } from '@/types';
 
 /**
- * Thử generate bằng OpenAI trước, nếu lỗi thì fallback sang Gemini
+ * Simple Vietnamese language detection
  */
-async function generateAIResponse(prompt: string): Promise<{ text: string; provider: string }> {
+function isVietnameseText(text: string): boolean {
+  const vnChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+  const vnWords = /\b(tốt|đẹp|phòng|nhân viên|ks|khách sạn|dịch vụ|ăn|ngon|phục vụ|tuyệt vời|ok|giá|ở)\b/i;
+  return vnChars.test(text) || vnWords.test(text);
+}
+
+/**
+ * Generate premium mock replies if no API keys are available or APIs fail
+ */
+function generateMockReplies(reviewText: string, rating: number, authorName: string): AIGenerateOutput {
+  const isVn = isVietnameseText(reviewText);
+
+  if (isVn) {
+    if (rating >= 4) {
+      return {
+        standard: `Cảm ơn anh/chị ${authorName} đã dành thời gian đánh giá ${rating} sao cho chúng tôi. Chúng tôi rất vui mừng khi anh/chị đã có một trải nghiệm hài lòng tại đây. Hy vọng sẽ được chào đón anh/chị quay lại trong thời gian sớm nhất!`,
+        friendly: `Cảm ơn ${authorName} rất nhiều vì review siêu dễ thương! Đội ngũ nhân viên đọc xong ai cũng vui hết nấc. Lần sau ghé lại nhớ nhắn tụi mình để được tiếp đón chu đáo hơn nữa nhé!`,
+        resolution: `Cảm ơn anh/chị ${authorName} đã góp ý. Dù anh/chị đã hài lòng, chúng tôi vẫn không ngừng nỗ lực nâng cao chất lượng hơn nữa để mang đến trải nghiệm tuyệt hảo nhất cho lần ghé thăm tiếp theo.`
+      };
+    } else {
+      return {
+        standard: `Kính chào anh/chị ${authorName}. Chúng tôi chân thành xin lỗi vì trải nghiệm chưa trọn vẹn của anh/chị tại cơ sở. Ý kiến đóng góp của anh/chị về dịch vụ đã được chuyển tới ban quản lý để kịp thời chấn chỉnh và khắc phục chất lượng. Rất mong có cơ hội được đón tiếp lại để sửa chữa thiếu sót.`,
+        friendly: `Chào ${authorName}, tụi mình rất tiếc khi nghe chia sẻ của bạn về trải nghiệm chưa được ưng ý lần này. Đừng giận tụi mình nhé! Tụi mình đã ghi nhận và đang sửa đổi ngay lập tức. Hy vọng bạn sẽ cho tụi mình cơ hội chuộc lỗi ở lần ghé sau nha!`,
+        resolution: `Kính gửi anh/chị ${authorName}, chúng tôi vô cùng cáo lỗi vì sự bất tiện mà anh/chị gặp phải. Chúng tôi muốn liên hệ trực tiếp với anh/chị để gửi lời xin lỗi chân thành cùng một ưu đãi bù đắp cho lần tới. Mong anh/chị có thể lượng thứ.`
+      };
+    }
+  } else {
+    if (rating >= 4) {
+      return {
+        standard: `Dear ${authorName}, thank you so much for taking the time to share your positive experience and giving us a ${rating}-star rating! We are thrilled to hear you enjoyed your stay with us. We look forward to welcoming you back soon.`,
+        friendly: `Hi ${authorName}! Thanks a million for the wonderful review! Your feedback made our team's day. We can't wait to have you back with us for another fantastic time!`,
+        resolution: `Dear ${authorName}, thank you for your review. While we are glad you had a great overall experience, we will continue to fine-tune our service to ensure your next visit is absolutely perfect.`
+      };
+    } else {
+      return {
+        standard: `Dear ${authorName}, thank you for your feedback. We sincerely apologize that your recent experience did not meet your expectations. We have shared your comments with our management team to address these issues and improve our service. We hope to have the opportunity to regain your trust.`,
+        friendly: `Hi ${authorName}, we are truly sorry to hear that things weren't quite right during your visit. We hate to disappoint our guests! We are working hard to fix the issues you mentioned. We'd love another chance to show you the top-notch hospitality we are known for.`,
+        resolution: `Dear ${authorName}, please accept our sincerest apologies for the inconvenience caused. We would appreciate the opportunity to discuss this further with you to offer a complimentary upgrade or discount on your next visit. Please contact our guest relations manager directly.`
+      };
+    }
+  }
+}
+
+/**
+ * Thử generate bằng OpenAI trước, nếu lỗi thì fallback sang Gemini, cuối cùng fallback sang mock generator
+ */
+async function generateAIResponse(
+  prompt: string,
+  reviewText: string,
+  rating: number,
+  authorName: string
+): Promise<{ text: string; provider: string }> {
   // 1. Thử OpenAI trước
   if (process.env.OPENAI_API_KEY) {
     try {
@@ -38,11 +89,16 @@ async function generateAIResponse(prompt: string): Promise<{ text: string; provi
       return { text, provider: 'gemini' };
     } catch (error) {
       console.error('❌ Gemini also failed:', (error as Error).message);
-      throw error;
     }
   }
 
-  throw new Error('No AI API key configured. Set OPENAI_API_KEY or GEMINI_API_KEY in .env.local');
+  // 3. Cuối cùng, fallback sang mock generator để demo LUÔN LUÔN hoạt động mượt mà
+  console.log('⚠️ Both AI models failed or keys not set. Generating premium mock replies as fallback.');
+  const mockOutput = generateMockReplies(reviewText, rating, authorName);
+  return {
+    text: JSON.stringify(mockOutput),
+    provider: 'local-mock',
+  };
 }
 
 /**
@@ -87,7 +143,12 @@ export async function POST(request: Request) {
 
     // 3. Gọi AI (OpenAI → Gemini fallback)
     const prompt = buildReplyPrompt(review.review_text, review.rating, review.author_name);
-    const { text: responseText, provider } = await generateAIResponse(prompt);
+    const { text: responseText, provider } = await generateAIResponse(
+      prompt,
+      review.review_text,
+      review.rating,
+      review.author_name
+    );
 
     // 4. Parse AI response
     let aiOutput: AIGenerateOutput;

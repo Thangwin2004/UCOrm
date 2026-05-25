@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Check, Loader2, Sparkles, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { AIReply } from '@/types';
@@ -44,6 +44,14 @@ export default function AiReplySection({
   const [generating, setGenerating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // Smooth scroll into view when replies are generated
+  useEffect(() => {
+    if (replies.length > 0 && !selectedReplyId) {
+      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [replies.length, selectedReplyId]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -147,7 +155,7 @@ export default function AiReplySection({
   const isResolved = reviewStatus === 'resolved';
 
   return (
-    <div className="mt-4 pt-4 border-t border-surface-800">
+    <div ref={sectionRef} className="mt-4 pt-4 border-t border-surface-800">
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-sm font-semibold text-surface-300 flex items-center gap-2">
           <Sparkles size={14} className="text-primary-400" />
